@@ -44,7 +44,7 @@ export function getDashboardUrl(
     `http://localhost:${config.get<number>('app.port', 3001)}`;
   if (!agentName) return baseUrl;
   const suffix = section ? `/${section}` : '';
-  return `${baseUrl}/agents/${encodeURIComponent(agentName)}${suffix}`;
+  return `${baseUrl}/harnesses/${encodeURIComponent(agentName)}${suffix}`;
 }
 
 export function buildFriendlyResponse(

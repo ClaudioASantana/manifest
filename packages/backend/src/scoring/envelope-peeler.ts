@@ -79,10 +79,16 @@ function looksLikeStructuredData(inner: string): boolean {
   const last = stripped[stripped.length - 1];
   if ((first === '{' && last === '}') || (first === '[' && last === ']')) return true;
 
-  // YAML front-matter style: every non-empty line is `key: value` or a list item.
+  // YAML front-matter style: check first and last few lines to prevent CPU blocking on massive inputs
   const lines = stripped.split('\n');
+  const checkLimit = 15;
+  const linesToCheck =
+    lines.length <= checkLimit * 2
+      ? lines
+      : [...lines.slice(0, checkLimit), ...lines.slice(-checkLimit)];
+
   let yamlLines = 0;
-  for (const line of lines) {
+  for (const line of linesToCheck) {
     const t = line.trim();
     if (t.length === 0) continue;
     if (/^[A-Za-z_][\w.-]*\s*:\s*\S/.test(t) || /^- /.test(t)) {

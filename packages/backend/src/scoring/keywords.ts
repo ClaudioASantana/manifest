@@ -25,4 +25,15 @@ export const DEFAULT_KEYWORDS: Record<string, string[]> = {
   emailManagement: EMAIL_MANAGEMENT_KEYWORDS,
   calendarManagement: CALENDAR_MANAGEMENT_KEYWORDS,
   trading: TRADING_KEYWORDS,
+  expectedOutputLengthSignals: [
+    'comprehensive',
+    'detailed',
+    'thorough',
+    'exhaustive',
+    'in-depth',
+    'full report',
+    'complete guide',
+    'write a full',
+    'cover all',
+  ],
 };

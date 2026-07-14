@@ -92,6 +92,7 @@ interface StructuralDimContext {
   tools?: ScorerInput['tools'];
   toolChoice?: unknown;
   conversationCount: number;
+  allMatches: TrieMatch[];
 }
 
 type StructuralScorer = (ctx: StructuralDimContext) => number;
@@ -102,7 +103,7 @@ const STRUCTURAL_SCORERS = new Map<string, StructuralScorer>([
   ['conditionalLogic', (ctx) => scoreConditionalLogic(ctx.combined)],
   ['codeToProse', (ctx) => scoreCodeToProse(ctx.combined)],
   ['constraintDensity', (ctx) => scoreConstraintDensity(ctx.combined)],
-  ['expectedOutputLength', (ctx) => scoreExpectedOutputLength(ctx.combined, ctx.maxTokens)],
+  ['expectedOutputLength', (ctx) => scoreExpectedOutputLength(ctx.allMatches, ctx.maxTokens)],
   ['repetitionRequests', (ctx) => scoreRepetitionRequests(ctx.combined)],
   ['toolCount', (ctx) => scoreToolCount(ctx.tools, ctx.toolChoice)],
   ['conversationDepth', (ctx) => scoreConversationDepth(ctx.conversationCount)],
@@ -219,6 +220,7 @@ export function scoreRequest(
     tools,
     toolChoice: tool_choice,
     conversationCount,
+    allMatches,
   };
   const { dimensions, rawScore } = scoreDimensions(config, allMatches, extracted, ctx);
 
