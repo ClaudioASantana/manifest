@@ -52,6 +52,7 @@ export class ResolveAgentService {
     const agent = await this.agentRepo.findOne({
       where: { tenant_id: tenantId, name: agentName, deleted_at: IsNull() },
     });
+    console.error('ResolveAgent:', { tenantId, agentName, options, agent });
     if (!agent) throw new NotFoundException(`Agent "${agentName}" not found`);
 
     // Reject playground agents unless the caller explicitly opted in.

@@ -33,6 +33,7 @@ import { shouldRetryDbConnection } from '../common/utils/db-retry';
         url: config.get<string>('app.databaseUrl'),
         entities,
         synchronize: false,
+        logging: true,
         // Run migrations on boot by default. `synchronize: false` is permanent,
         // so committed migrations are the only source of schema changes, and a
         // single instance (dev, self-hosted) must boot with the schema applied
