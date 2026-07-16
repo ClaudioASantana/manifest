@@ -55,7 +55,6 @@ import { shouldRetryDbConnection } from '../common/utils/db-retry';
         // Retrying" line and fails fast with the real migration error. Genuine
         // connectivity failures (DB not ready yet) still retry.
         toRetry: shouldRetryDbConnection,
-        logging: false,
         extra: {
           // app.config.ts always resolves dbPoolMax (default 20), so there is no
           // undefined case to fall back from — keep that file the single source
