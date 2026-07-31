@@ -32,20 +32,32 @@ export function scoreKeywordDimension(
   const uniqueKeywords = [...new Set(dimMatches.map((m) => m.keyword))];
   const densityActive = hasDensityCluster(dimMatches, DENSITY_WINDOW);
 
-  let weightedSum = 0;
+  // Pre-calculate message character offsets in the combined text
+  let currentOffset = 0;
+  const messageCounts = new Map<number, number>(); // message index -> match count
+  const messageBoundaries = extractedTexts.map((ext, idx) => {
+    const start = currentOffset;
+    const end = currentOffset + ext.text.length;
+    currentOffset += ext.text.length + 1; // +1 for the '\n' separator
+    messageCounts.set(idx, 0);
+    return { start, end, idx };
+  });
 
-  for (const ext of extractedTexts) {
-    const textLower = ext.text.toLowerCase();
-    let chunkCount = 0;
-
-    for (const match of dimMatches) {
-      if (textLower.includes(match.keyword)) {
-        chunkCount++;
-      }
+  // Map each TrieMatch to its containing message boundary
+  for (const match of dimMatches) {
+    const boundary = messageBoundaries.find(
+      (b) => match.position >= b.start && match.position <= b.end,
+    );
+    if (boundary) {
+      messageCounts.set(boundary.idx, messageCounts.get(boundary.idx)! + 1);
     }
+  }
 
-    if (chunkCount > 0) {
-      let contribution = chunkCount * ext.positionWeight;
+  let weightedSum = 0;
+  for (let idx = 0; idx < extractedTexts.length; idx++) {
+    const count = messageCounts.get(idx) ?? 0;
+    if (count > 0) {
+      let contribution = count * extractedTexts[idx].positionWeight;
       if (densityActive) contribution *= DENSITY_BONUS;
       weightedSum += contribution;
     }

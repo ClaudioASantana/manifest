@@ -35,6 +35,7 @@ import { RequestRecordingRetentionService } from './request-recording-retention.
         url: config.get<string>('app.databaseUrl'),
         entities,
         synchronize: false,
+        logging: true,
         // Run migrations on boot by default. `synchronize: false` is permanent,
         // so committed migrations are the only source of schema changes, and a
         // single instance (dev, self-hosted) must boot with the schema applied
@@ -56,7 +57,6 @@ import { RequestRecordingRetentionService } from './request-recording-retention.
         // Retrying" line and fails fast with the real migration error. Genuine
         // connectivity failures (DB not ready yet) still retry.
         toRetry: shouldRetryDbConnection,
-        logging: false,
         extra: {
           // app.config.ts always resolves dbPoolMax (default 20), so there is no
           // undefined case to fall back from — keep that file the single source

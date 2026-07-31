@@ -1,24 +1,9 @@
 import { ScorerTool } from '../types';
+import { TrieMatch } from '../keyword-trie';
 
-const LENGTH_SIGNALS = [
-  'comprehensive',
-  'detailed',
-  'thorough',
-  'exhaustive',
-  'in-depth',
-  'full report',
-  'complete guide',
-  'write a full',
-  'cover all',
-];
-
-export function scoreExpectedOutputLength(text: string, maxTokens?: number): number {
-  const lower = text.toLowerCase();
-  let signalCount = 0;
-
-  for (const signal of LENGTH_SIGNALS) {
-    if (lower.includes(signal)) signalCount++;
-  }
+export function scoreExpectedOutputLength(matches: TrieMatch[], maxTokens?: number): number {
+  const lengthMatches = matches.filter((m) => m.dimension === 'expectedOutputLengthSignals');
+  const signalCount = new Set(lengthMatches.map((m) => m.keyword)).size;
 
   let score = 0;
   if (signalCount === 1) score = 0.3;

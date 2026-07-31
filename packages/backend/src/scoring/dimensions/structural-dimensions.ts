@@ -13,18 +13,42 @@ export function scoreTokenCount(text: string): number {
 }
 
 export function scoreNestedListDepth(text: string): number {
-  const listPattern = /^(\s+)(?:[-*+]\s|\d+[.)]\s)/gm;
-  const indentLevels = new Set<number>();
-  let match: RegExpExecArray | null;
+  const lines = text.split('\n');
+  let maxDepth = 0;
+  let currentListStack: number[] = [];
 
-  while ((match = listPattern.exec(text)) !== null) {
-    indentLevels.add(match[1].length);
+  for (const line of lines) {
+    const match = line.match(/^(\s*)(?:[-*+]\s|\d+[.)]\s)/);
+    if (match) {
+      const indent = match[1].length;
+      if (currentListStack.length === 0) {
+        currentListStack.push(indent);
+      } else {
+        // Encontra o nível correspondente no stack
+        while (
+          currentListStack.length > 0 &&
+          currentListStack[currentListStack.length - 1] > indent
+        ) {
+          currentListStack.pop();
+        }
+        if (
+          currentListStack.length === 0 ||
+          currentListStack[currentListStack.length - 1] < indent
+        ) {
+          currentListStack.push(indent);
+        }
+      }
+      maxDepth = Math.max(maxDepth, currentListStack.length);
+    } else {
+      // Linha vazia ou texto normal reinicia o bloco de listas
+      if (line.trim().length > 0 && !line.match(/^\s*$/)) {
+        currentListStack = [];
+      }
+    }
   }
 
-  const levels = indentLevels.size;
-  if (levels === 0) return 0;
-  if (levels === 1) return 0.3;
-  if (levels === 2) return 0.6;
+  if (maxDepth <= 1) return 0;
+  if (maxDepth === 2) return 0.6;
   return 0.9;
 }
 
