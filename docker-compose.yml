@@ -44,7 +44,6 @@ services:
   manifest:
     image: manifest-local:latest
     restart: unless-stopped
-    command: ["/nodejs/bin/node", "-e", "setInterval(() => {}, 3600000)"]
     build:
       context: .
       dockerfile: docker/Dockerfile
@@ -158,21 +157,6 @@ services:
         max-file: "5"
     security_opt:
       - no-new-privileges:true
-    networks:
-      - internal
-
-  restore-db:
-    image: postgres:16-alpine
-    restart: "no"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      - PGPASSWORD=manifest
-    volumes:
-      - ./manifest_backup.b64:/backup.b64
-    command: >
-      sh -c "if [ -f /backup.b64 ]; then echo 'Restoring...'; base64 -d /backup.b64 | gunzip | psql -h postgres -U manifest -d manifest && echo 'Restore complete'; fi"
     networks:
       - internal
 
