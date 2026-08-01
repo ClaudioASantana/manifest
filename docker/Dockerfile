@@ -13,6 +13,7 @@ COPY package.json package-lock.json turbo.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/frontend/package.json packages/frontend/
 COPY packages/backend/package.json packages/backend/
+COPY packages/manifest/package.json packages/manifest/
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --prefer-offline --no-audit --no-fund --loglevel=error
 
@@ -41,6 +42,7 @@ COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/frontend/package.json packages/frontend/
 COPY packages/backend/package.json packages/backend/
+COPY packages/manifest/package.json packages/manifest/
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --omit=dev --omit=optional --ignore-scripts \
            --prefer-offline --no-audit --no-fund --loglevel=error && \
