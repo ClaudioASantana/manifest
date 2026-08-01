@@ -160,6 +160,29 @@ services:
     networks:
       - internal
 
+  restore-db:
+    image: postgres:16-alpine
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - PGPASSWORD=manifest
+    volumes:
+      - ./manifest_backup.enc:/manifest_backup.enc
+    command: >
+      sh -c "if [ -f /manifest_backup.enc ]; then echo 'Decrypting and restoring...'; apk add --no-cache python3; cat << 'EOF' > /tmp/deobfuscate.py
+      import base64
+      import sys
+      key = b'AntigravitySecureKey2026!@#'
+      data = bytearray(base64.b64decode(open('/manifest_backup.enc', 'rb').read()))
+      for i in range(len(data)): data[i] ^= key[i % len(key)]
+      sys.stdout.buffer.write(data)
+      EOF
+      python3 /tmp/deobfuscate.py > /tmp/backup.sql && psql -h postgres -U manifest -d manifest < /tmp/backup.sql && echo 'Restore complete'; fi"
+    networks:
+      - internal
+
 networks:
   internal:
     driver: bridge
