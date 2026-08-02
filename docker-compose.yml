@@ -44,9 +44,6 @@ services:
   manifest:
     image: manifest-local:latest
     restart: unless-stopped
-    command: ["/nodejs/bin/node", "-e", "const http=require('http'); const fs=require('fs'); http.createServer((q,s)=>{ s.writeHead(200,{'Content-Type':'text/plain'}); try{ s.end(fs.readFileSync('/shared/restore.log','utf8')); }catch(e){ s.end('Waiting for restore to start...'); } }).listen(process.env.PORT || 2099);"]
-    volumes:
-      - shared_data:/shared
     build:
       context: .
       dockerfile: docker/Dockerfile
