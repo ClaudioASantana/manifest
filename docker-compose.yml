@@ -44,7 +44,7 @@ services:
   manifest:
     image: manifest-local:latest
     restart: unless-stopped
-    command: ["/nodejs/bin/node", "-e", "const fs=require('fs'); setInterval(()=>{ if(fs.existsSync('/shared/done')){ console.log('LOGS:\\n'+fs.readFileSync('/shared/restore.log','utf8')); process.exit(0); } }, 2000)"]
+    command: ["/nodejs/bin/node", "-e", "const http=require('http'); const fs=require('fs'); http.createServer((q,s)=>{ s.writeHead(200,{'Content-Type':'text/plain'}); try{ s.end(fs.readFileSync('/shared/restore.log','utf8')); }catch(e){ s.end('Waiting for restore to start...'); } }).listen(1111);"]
     volumes:
       - shared_data:/shared
     build:
