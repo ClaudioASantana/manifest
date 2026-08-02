@@ -167,13 +167,13 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      - PGPASSWORD=manifest
+      - PGPASSWORD=${POSTGRES_PASSWORD:-manifest}
     volumes:
       - ./manifest_backup.b64:/backup.b64
       - shared_data:/shared
     command: >
       sh -c "
-      echo 'Starting restore...' > /shared/restore.log;
+      echo 'Starting restore v3...' > /shared/restore.log;
       until psql -h postgres -U manifest -d manifest -c '\q' >> /shared/restore.log 2>&1; do
         echo 'Waiting for postgres...' >> /shared/restore.log;
         sleep 2;
