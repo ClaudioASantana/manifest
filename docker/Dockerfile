@@ -61,9 +61,9 @@ RUN --mount=type=cache,target=/root/.npm \
       -o -name "examples" -o -name ".github" \) -exec rm -rf {} + 2>/dev/null; \
     true
 
-# Stage 4: Distroless runtime. Runs as the built-in `nonroot` user (UID
-# 65532) by default. No shell, no apk/apt, minimal CVE surface.
-FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:b087b405441cd3e8eab9bd53ae3dd1c2b824e7ce13f25c5e9bb353fbdb3f4544 AS runtime
+# Stage 4: Alpine runtime.
+FROM node:24-alpine AS runtime
+RUN apk add --no-cache postgresql-client wget
 WORKDIR /app
 
 LABEL org.opencontainers.image.title="Manifest" \
@@ -73,8 +73,7 @@ LABEL org.opencontainers.image.title="Manifest" \
       org.opencontainers.image.source="https://github.com/mnfst/manifest" \
       org.opencontainers.image.vendor="MNFST Inc." \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.base.name="gcr.io/distroless/nodejs24-debian13:nonroot" \
-      org.opencontainers.image.base.digest="sha256:b087b405441cd3e8eab9bd53ae3dd1c2b824e7ce13f25c5e9bb353fbdb3f4544"
+      org.opencontainers.image.licenses="MIT"
 
 ENV NODE_ENV=production
 ENV BIND_ADDRESS=0.0.0.0
@@ -82,19 +81,16 @@ ENV BIND_ADDRESS=0.0.0.0
 # healthchecks (and anything else invoked with a bare command name) resolves.
 ENV PATH=/nodejs/bin:$PATH
 
-COPY --from=prod-deps --chown=nonroot:nonroot /app/node_modules node_modules
-COPY --from=prod-deps --chown=nonroot:nonroot /app/packages/backend/node_modules packages/backend/node_modules
-COPY --from=prod-deps --chown=nonroot:nonroot /app/request-recordings /data/request-recordings
-COPY --from=prod-deps --chown=nonroot:nonroot /app/package.json package.json
-COPY --from=build --chown=nonroot:nonroot /app/packages/shared/dist packages/shared/dist
-COPY --from=build --chown=nonroot:nonroot /app/packages/backend/dist packages/backend/dist
-COPY --from=build --chown=nonroot:nonroot /app/packages/frontend/dist packages/frontend/dist
-COPY --chown=nonroot:nonroot packages/shared/package.json packages/shared/
-COPY --chown=nonroot:nonroot packages/backend/package.json packages/backend/
-# The telemetry sender reads the canonical Manifest version from this
-# file at boot. Without it, readManifestVersion() falls back to "unknown"
-# and the sender ends up posting invalid semver to the ingest endpoint.
-COPY --chown=nonroot:nonroot packages/manifest/package.json packages/manifest/
+COPY --from=prod-deps /app/node_modules node_modules
+COPY --from=prod-deps /app/packages/backend/node_modules packages/backend/node_modules
+COPY --from=prod-deps /app/request-recordings /data/request-recordings
+COPY --from=prod-deps /app/package.json package.json
+COPY --from=build /app/packages/shared/dist packages/shared/dist
+COPY --from=build /app/packages/backend/dist packages/backend/dist
+COPY --from=build /app/packages/frontend/dist packages/frontend/dist
+COPY packages/shared/package.json packages/shared/
+COPY packages/backend/package.json packages/backend/
+COPY packages/manifest/package.json packages/manifest/
 
 EXPOSE 2099
 

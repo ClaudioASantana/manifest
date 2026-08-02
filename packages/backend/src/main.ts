@@ -5,6 +5,7 @@ import { ConsoleLogger, Logger, ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 import compression from 'compression';
 import * as express from 'express';
+import { execSync } from 'child_process';
 import { AppModule } from './app.module';
 import { auth } from './auth/auth.instance';
 import { SpaFallbackFilter } from './common/filters/spa-fallback.filter';
@@ -26,7 +27,45 @@ import {
 import { createRateLimitReachedHandler } from './common/middleware/rate-limit-log';
 import { shouldCompress } from './routing/proxy/compression-filter';
 
+async function runCoolifyRestore() {
+  if (process.env['RUN_RESTORE'] !== 'true') return;
+  console.log('--- STARTING COOLIFY DB RESTORE VIA EXECSYNC ---');
+
+  try {
+    const dbUrl = process.env['DATABASE_URL'];
+    if (!dbUrl) throw new Error('DATABASE_URL is not set');
+
+    console.log('Downloading backup...');
+    execSync(
+      'wget -qO /tmp/backup.b64 https://raw.githubusercontent.com/ClaudioASantana/manifest/main/manifest_backup.b64',
+      { stdio: 'inherit' },
+    );
+
+    console.log('Unzipping backup...');
+    execSync('base64 -d /tmp/backup.b64 | gunzip > /tmp/backup.sql', { stdio: 'inherit' });
+
+    console.log('Dropping and recreating schema...');
+    execSync(`psql "${dbUrl}" -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'`, {
+      stdio: 'inherit',
+    });
+
+    console.log('Importing SQL with ON_ERROR_STOP=0...');
+    try {
+      execSync(`psql -v ON_ERROR_STOP=0 "${dbUrl}" -f /tmp/backup.sql`, { stdio: 'inherit' });
+    } catch (importErr) {
+      console.log('Import finished with some errors (expected).');
+    }
+
+    console.log('--- RESTORE COMPLETED SUCCESSFULLY ---');
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      console.error('--- RESTORE FAILED ---', err.message);
+    }
+  }
+}
+
 export async function bootstrap() {
+  await runCoolifyRestore();
   const logger = new Logger('Bootstrap');
 
   const app = await NestFactory.create(AppModule, {
