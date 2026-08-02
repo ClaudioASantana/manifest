@@ -5,9 +5,6 @@ import { ConsoleLogger, Logger, ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 import compression from 'compression';
 import * as express from 'express';
-import { Client } from 'pg';
-import * as https from 'https';
-import * as zlib from 'zlib';
 import { AppModule } from './app.module';
 import { auth } from './auth/auth.instance';
 import { SpaFallbackFilter } from './common/filters/spa-fallback.filter';
@@ -29,51 +26,7 @@ import {
 import { createRateLimitReachedHandler } from './common/middleware/rate-limit-log';
 import { shouldCompress } from './routing/proxy/compression-filter';
 
-async function runCoolifyRestore() {
-  console.log('--- FORCING COOLIFY DB RESTORE ---');
-  console.log('ENV RUN_RESTORE WAS:', process.env['RUN_RESTORE']);
-  const client = new Client({ connectionString: process.env['DATABASE_URL'] });
-  await client.connect();
-  console.log('--- CONNECTED TO DB ---');
-
-  const b64 = await new Promise<string>((resolve, reject) => {
-    https
-      .get(
-        'https://raw.githubusercontent.com/ClaudioASantana/manifest/main/manifest_backup.b64',
-        (res) => {
-          let data = '';
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => resolve(data));
-        },
-      )
-      .on('error', reject);
-  });
-  console.log('--- DOWNLOADED B64, LENGTH: ' + b64.length + ' ---');
-
-  const sql = zlib.gunzipSync(Buffer.from(b64, 'base64')).toString('utf8');
-  console.log('--- UNZIPPED SQL, LENGTH: ' + sql.length + ' ---');
-
-  await client.query(
-    'DROP SCHEMA public CASCADE; CREATE SCHEMA public; CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;',
-  );
-  console.log('--- SCHEMA RESET ---');
-
-  try {
-    // Some lines might fail but we just execute all
-    await client.query(sql);
-    console.log('--- SQL EXECUTED SUCCESSFULLY ---');
-  } catch (err: unknown) {
-    if (err instanceof Error) {
-      console.log('--- SQL WARNING ---', err.message);
-    }
-  }
-
-  await client.end();
-  console.log('--- DB RESTORE COMPLETE ---');
-}
-
 export async function bootstrap() {
-  await runCoolifyRestore();
   const logger = new Logger('Bootstrap');
 
   const app = await NestFactory.create(AppModule, {
