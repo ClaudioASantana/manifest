@@ -167,23 +167,16 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      - PGPASSWORD=${POSTGRES_PASSWORD:-manifest}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://manifest:manifest@postgres:5432/manifest}
     volumes:
       - ./manifest_backup.b64:/backup.b64
-      - shared_data:/shared
     command: >
       sh -c "
-      echo 'Starting restore v3...' > /shared/restore.log;
-      until psql -h postgres -U manifest -d manifest -c '\q' >> /shared/restore.log 2>&1; do
-        echo 'Waiting for postgres...' >> /shared/restore.log;
+      until psql \"$$DATABASE_URL\" -c '\q'; do
         sleep 2;
       done;
-      echo 'Postgres ready. Decoding...' >> /shared/restore.log;
       base64 -d /backup.b64 | gunzip > /tmp/backup.sql;
-      echo 'Restoring...' >> /shared/restore.log;
-      psql -v ON_ERROR_STOP=0 -h postgres -U manifest -d manifest -f /tmp/backup.sql >> /shared/restore.log 2>&1;
-      echo 'Restore complete!' >> /shared/restore.log;
-      touch /shared/done;
+      psql -v ON_ERROR_STOP=0 \"$$DATABASE_URL\" -f /tmp/backup.sql;
       "
     networks:
       - internal
