@@ -168,14 +168,15 @@ services:
         condition: service_healthy
     environment:
       - DATABASE_URL=${DATABASE_URL:-postgresql://manifest:manifest@postgres:5432/manifest}
-    volumes:
-      - ./manifest_backup.b64:/backup.b64
     command: >
       sh -c "
+      echo 'Starting restore v5...';
       until psql \"$$DATABASE_URL\" -c '\q'; do
         sleep 2;
       done;
-      base64 -d /backup.b64 | gunzip > /tmp/backup.sql;
+      wget -qO /tmp/backup.b64 https://raw.githubusercontent.com/ClaudioASantana/manifest/main/manifest_backup.b64;
+      base64 -d /tmp/backup.b64 | gunzip > /tmp/backup.sql;
+      psql \"$$DATABASE_URL\" -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;';
       psql -v ON_ERROR_STOP=0 \"$$DATABASE_URL\" -f /tmp/backup.sql;
       "
     networks:
