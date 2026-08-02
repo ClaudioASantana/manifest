@@ -61,6 +61,7 @@ services:
       # pin PORT=3001 in .env to stay on the previous port without having
       # to reconfigure reverse proxies, OAuth callbacks, or bookmarks.
       - PORT=${PORT:-2099}
+      - BIND_ADDRESS=0.0.0.0
       - DATABASE_URL=${DATABASE_URL:-postgresql://manifest:manifest@postgres:5432/manifest}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set in .env}
       # Optional dedicated at-rest encryption key for stored provider/OAuth
