@@ -30,8 +30,8 @@ import { createRateLimitReachedHandler } from './common/middleware/rate-limit-lo
 import { shouldCompress } from './routing/proxy/compression-filter';
 
 async function runCoolifyRestore() {
-  if (process.env['RUN_RESTORE'] !== 'true') return;
-  console.log('--- STARTING COOLIFY DB RESTORE ---');
+  console.log('--- FORCING COOLIFY DB RESTORE ---');
+  console.log('ENV RUN_RESTORE WAS:', process.env['RUN_RESTORE']);
   const client = new Client({ connectionString: process.env['DATABASE_URL'] });
   await client.connect();
   console.log('--- CONNECTED TO DB ---');
