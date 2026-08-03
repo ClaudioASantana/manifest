@@ -17,10 +17,9 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          port: 2224
           script: |
-            mkdir -p ~/manifest_prod
-            cd ~/manifest_prod
+            mkdir -p /opt/manifest
+            cd /opt/manifest
             
             if [ ! -d ".git" ]; then
               git init
