@@ -45,7 +45,7 @@ services:
     image: manifest-local:latest
     restart: unless-stopped
     build:
-      context: ./source
+      context: .
       dockerfile: docker/Dockerfile
     ports:
       - "${PORT:-2099}:${PORT:-2099}"
