@@ -1,0 +1,3 @@
+manifest.grupocin.com.br {
+    reverse_proxy manifest:2099
+}

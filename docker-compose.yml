@@ -47,9 +47,6 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    labels:
-      - "traefik.docker.network=coolify"
-      - "traefik.http.services.manifest.loadbalancer.server.port=2099"
     ports:
       - "${PORT:-2099}:${PORT:-2099}"
     # Lets the container reach LLM servers running on the host (Ollama,
@@ -165,6 +162,20 @@ services:
     networks:
       - internal
 
+  caddy:
+    image: caddy:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - frontend
+      - internal
+
 
 networks:
   coolify:
@@ -184,3 +195,5 @@ volumes:
   # against a fresh empty DB — i.e. data loss.
   pgdata:
     name: manifest_pgdata
+  caddy_data:
+  caddy_config:

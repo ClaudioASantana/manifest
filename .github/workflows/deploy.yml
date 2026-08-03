@@ -1,0 +1,41 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            # Cria a pasta de deploy se não existir
+            mkdir -p /opt/manifest
+            cd /opt/manifest
+            
+            # Se for o primeiro deploy, precisa baixar as novidades
+            if [ ! -d ".git" ]; then
+              git init
+              git remote add origin https://github.com/ClaudioASantana/manifest.git
+            fi
+            
+            # Limpa qualquer mudança local no servidor e puxa a master mais nova
+            git fetch origin main
+            git reset --hard origin/main
+            
+            # Para o Coolify caso ele esteja rodando e travando a porta 80/443 (Roda com falha tolerada se não existir)
+            docker stop coolify-proxy || true
+            docker rm coolify-proxy || true
+            
+            # Reinicia nosso app
+            docker compose down
+            docker compose up -d --build
