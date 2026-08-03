@@ -47,6 +47,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+    labels:
+      - traefik.http.services.${COOLIFY_CONTAINER_NAME:-manifest}.loadbalancer.server.port=${PORT:-2099}
     ports:
       - "${PORT:-2099}:${PORT:-2099}"
     # Lets the container reach LLM servers running on the host (Ollama,
