@@ -45,7 +45,7 @@ services:
     image: manifest-local:latest
     restart: unless-stopped
     build:
-      context: .
+      context: ./source
       dockerfile: docker/Dockerfile
     ports:
       - "${PORT:-2099}:${PORT:-2099}"
@@ -55,14 +55,12 @@ services:
     # Desktop works out of the box).
     extra_hosts:
       - "host.docker.internal:host-gateway"
-      - "manifest.grupocin.com.br:host-gateway"
     environment:
       # Default to 2099 (the current dashboard port). Existing installs can
       # pin PORT=3001 in .env to stay on the previous port without having
       # to reconfigure reverse proxies, OAuth callbacks, or bookmarks.
       - PORT=${PORT:-2099}
-      - BIND_ADDRESS=0.0.0.0
-      - DATABASE_URL=${DATABASE_URL:-postgresql://manifest:manifest@postgres:5432/manifest}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://manifest:manifest@manifest-db:5432/manifest}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set in .env}
       # Optional dedicated at-rest encryption key for stored provider/OAuth
       # credentials. When unset, the backend falls back to BETTER_AUTH_SECRET.
@@ -100,7 +98,7 @@ services:
       # https://manifest.build/telemetry for the exact payload shape.
       - MANIFEST_TELEMETRY_DISABLED=${MANIFEST_TELEMETRY_DISABLED:-0}
     depends_on:
-      postgres:
+      manifest-db:
         condition: service_healthy
     healthcheck:
       test:
@@ -134,11 +132,10 @@ services:
     mem_limit: 1g
     pids_limit: 512
     networks:
-      - coolify
       - internal
       - frontend
 
-  postgres:
+  manifest-db:
     image: postgres:16-alpine@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416
     restart: unless-stopped
     environment:
@@ -162,24 +159,7 @@ services:
     networks:
       - internal
 
-  caddy:
-    image: caddy:latest
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-      - caddy_config:/config
-    networks:
-      - frontend
-      - internal
-
-
 networks:
-  coolify:
-    external: true
   internal:
     driver: bridge
     internal: true
@@ -195,5 +175,3 @@ volumes:
   # against a fresh empty DB — i.e. data loss.
   pgdata:
     name: manifest_pgdata
-  caddy_data:
-  caddy_config:
