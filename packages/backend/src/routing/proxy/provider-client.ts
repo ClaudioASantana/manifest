@@ -1,12 +1,19 @@
 import { createHash } from 'crypto';
-import { HttpStatus, Injectable, Logger, Optional } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { OPENAI_RESPONSES_ONLY_RE, stripVendorPrefix } from '../../common/constants/openai-models';
 import { XAI_RESPONSES_ONLY_RE } from '../../common/constants/xai-models';
-import { PROVIDER_ENDPOINTS, ProviderEndpoint, resolveEndpointKey } from './provider-endpoints';
+import {
+  PROVIDER_ENDPOINTS,
+  ProviderEndpoint,
+  resolveBedrockEndpointKey,
+  resolveEndpointKey,
+} from './provider-endpoints';
 import { validatePublicUrl } from '../../common/utils/url-validation';
 import { isSelfHosted } from '../../common/utils/detect-self-hosted';
 import { resolveSubscriptionEndpointKey } from './provider-hooks';
 import { injectOpenAiMessageCacheControl, injectOpenRouterCacheControl } from './cache-injection';
+import type { ReasoningModelCatalog } from './reasoning-format';
+import { ModelsDevReasoningCatalog } from './reasoning-model-catalog';
 import {
   applyAnthropicAutomaticCacheControl,
   applyAnthropicMessagesMutations,
@@ -16,7 +23,7 @@ import {
   sanitizeOpenAiBody,
   collectChatGptSseResponse as chatGptSseCollector,
   convertChatGptResponse as chatGptResponseConverter,
-  convertChatGptStreamChunk as chatGptStreamChunkConverter,
+  createChatGptStreamTransformer as chatGptStreamTransformerFactory,
   convertGoogleResponse as googleResponseConverter,
   convertGoogleStreamChunk as googleStreamChunkConverter,
   convertAnthropicResponse as anthropicResponseConverter,
@@ -230,6 +237,9 @@ export class ProviderClient {
     private readonly modelRegistry?: ProviderModelRegistryService,
     @Optional()
     codexAffinity?: CodexSessionAffinity,
+    @Optional()
+    @Inject(ModelsDevReasoningCatalog)
+    private readonly reasoningCatalog?: ReasoningModelCatalog,
   ) {
     this.codexAffinity = codexAffinity ?? new CodexSessionAffinity();
   }
@@ -344,7 +354,7 @@ export class ProviderClient {
 
       // SSRF defense in depth for user-supplied endpoint URLs (custom providers,
       // subscription resource URLs). Re-check every actual forward, including
-      // an immediate Auto-fix retry, because DNS may have rebound in between.
+      // an immediate Autofix retry, because DNS may have rebound in between.
       if (endpoint.requiresSsrfRevalidation) {
         try {
           await validatePublicUrl(url, { allowPrivate: isSelfHosted() });
@@ -403,6 +413,9 @@ export class ProviderClient {
     if (authType === 'subscription') {
       const override = resolveSubscriptionEndpointKey(resolved);
       if (override) resolved = override;
+    }
+    if (resolved === 'bedrock') {
+      resolved = resolveBedrockEndpointKey(model);
     }
     if (resolved === 'qwen-subscription') {
       const bareQwenModel = stripVendorPrefix(model);
@@ -632,22 +645,33 @@ export class ProviderClient {
               stripCodexUnsupported: endpointKey === 'openai-subscription',
             })
           : toResponsesRequest(requestSource, bareModel, {
+              // The subscription backend only serves SSE. Manifest buffers it
+              // for non-streaming callers in handleNonStreamResponse.
               stream:
-                endpointKey === 'openai-responses' || endpointKey === 'xai-responses'
-                  ? ctx.stream
-                  : undefined,
+                endpointKey === 'openai-subscription'
+                  ? true
+                  : endpointKey === 'openai-responses' ||
+                      endpointKey === 'xai-responses' ||
+                      endpoint.forwardResponsesStream
+                    ? ctx.stream
+                    : undefined,
               // The ChatGPT subscription backend rejects max_output_tokens with
               // unsupported_parameter; only opt in for the API-key paths.
               mapMaxOutputTokens:
                 endpointKey === 'openai-responses' ||
                 endpointKey === 'copilot-responses' ||
-                endpointKey === 'xai-responses',
+                endpointKey === 'xai-responses' ||
+                endpoint.acceptsMaxOutputTokens,
               // OpenAI and xAI /responses endpoints accept prompt_cache_key.
               // Other Responses-shaped backends may 400 on unknown params.
               forwardPromptCacheKey:
                 endpointKey === 'openai-subscription' ||
                 endpointKey === 'openai-responses' ||
                 endpointKey === 'xai-responses',
+              // Only OpenAI infrastructure is known to accept
+              // reasoning.summary; other Responses backends may 400 on it.
+              mapReasoningEffort:
+                endpointKey === 'openai-subscription' || endpointKey === 'openai-responses',
             });
       if (endpointKey === 'xai-responses') {
         applyHashedPromptCacheKey(requestBody, ctx.providerCacheKey);
@@ -670,7 +694,12 @@ export class ProviderClient {
     }
 
     // OpenAI-compatible path (default)
-    const sanitized = sanitizeOpenAiBody(requestSource, endpointKey, ctx.model);
+    const sanitized = sanitizeOpenAiBody(
+      requestSource,
+      endpointKey,
+      ctx.model,
+      this.reasoningCatalog,
+    );
     if (stream && endpoint.streamUsageReporting === 'openai_stream_options') {
       const existing =
         typeof sanitized.stream_options === 'object' && sanitized.stream_options !== null
@@ -777,7 +806,7 @@ export class ProviderClient {
    * wrapper frame, while remaining mockable via DI in tests.
    */
   readonly convertChatGptResponse = chatGptResponseConverter;
-  readonly convertChatGptStreamChunk = chatGptStreamChunkConverter;
+  readonly createChatGptStreamTransformer = chatGptStreamTransformerFactory;
   readonly convertGoogleResponse = googleResponseConverter;
   readonly convertGoogleStreamChunk = googleStreamChunkConverter;
   readonly convertAnthropicResponse = anthropicResponseConverter;
