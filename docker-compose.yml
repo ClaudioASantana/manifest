@@ -69,8 +69,7 @@ services:
       # Defaults to the host-installed Ollama. Override in .env if your
       # Ollama runs elsewhere (e.g. on another host on your LAN).
       - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
-      # Aponta todas as requisições de IA padrão para o roteador local OmniRoute
-      - OMNIROUTE_URL=${OMNIROUTE_URL:-http://omniroute:20129}
+
       - PROVIDER_TIMEOUT_MS=${PROVIDER_TIMEOUT_MS:-180000}
       - STREAM_WARMUP_MS=${STREAM_WARMUP_MS:-15000}
       - SEED_DATA=false
@@ -161,49 +160,7 @@ services:
     networks:
       - internal
 
-  omniroute-redis:
-    image: docker.io/library/redis:8.6.5-alpine
-    restart: unless-stopped
-    volumes:
-      - omniroute-redis-data:/data
-    command: redis-server --save 60 1 --loglevel warning
-    networks:
-      - internal
 
-  chatgpt-web-codex-browser:
-    build:
-      context: ../../OmniRoute
-      dockerfile: docker/chatgpt-web-codex-browser/Dockerfile
-    restart: unless-stopped
-    shm_size: "2gb"
-    volumes:
-      - chatgpt-web-codex-browser-data:/browser-profile
-    networks:
-      - internal
-
-  omniroute:
-    build:
-      context: ../../OmniRoute
-      target: runner-web
-    restart: unless-stopped
-    depends_on:
-      - chatgpt-web-codex-browser
-      - omniroute-redis
-    environment:
-      - DATA_DIR=/app/data
-      - PORT=20128
-      - DASHBOARD_PORT=20128
-      - API_PORT=20129
-      - API_HOST=0.0.0.0
-      - REDIS_URL=redis://omniroute-redis:6379
-      - CHATGPT_WEB_CODEX_CDP_URL=http://chatgpt-web-codex-browser:9223
-    ports:
-      - "20128:20128"
-      - "20129:20129"
-    volumes:
-      - ../../OmniRoute/data:/app/data
-    networks:
-      - internal
 
 networks:
   internal:
@@ -221,5 +178,3 @@ volumes:
   # against a fresh empty DB — i.e. data loss.
   pgdata:
     name: manifest_pgdata
-  omniroute-redis-data:
-  chatgpt-web-codex-browser-data:
