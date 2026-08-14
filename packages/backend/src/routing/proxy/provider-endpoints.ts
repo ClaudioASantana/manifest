@@ -169,7 +169,7 @@ const MANAGED_FREE_ENDPOINTS: Record<string, ProviderEndpoint> = Object.fromEntr
 
 export const PROVIDER_ENDPOINTS: Record<string, ProviderEndpoint> = {
   openai: {
-    baseUrl: 'https://api.openai.com',
+    baseUrl: process.env.OMNIROUTE_URL || 'https://api.openai.com',
     buildHeaders: openaiHeaders,
     buildPath: openaiPath,
     format: 'openai',
@@ -190,7 +190,7 @@ export const PROVIDER_ENDPOINTS: Record<string, ProviderEndpoint> = {
     format: 'chatgpt',
   },
   anthropic: {
-    baseUrl: 'https://api.anthropic.com',
+    baseUrl: process.env.OMNIROUTE_URL || 'https://api.anthropic.com',
     buildHeaders: anthropicHeaders,
     buildPath: () => '/v1/messages',
     format: 'anthropic',
@@ -410,7 +410,7 @@ export const PROVIDER_ENDPOINTS: Record<string, ProviderEndpoint> = {
     ...openaiStreamUsage,
   },
   google: {
-    baseUrl: 'https://generativelanguage.googleapis.com',
+    baseUrl: process.env.OMNIROUTE_URL || 'https://generativelanguage.googleapis.com',
     // Google accepts the API key via the `x-goog-api-key` header as well as
     // the `?key=` query parameter. Header is preferable: query strings show
     // up in upstream proxy / load-balancer access logs, header values do not.
