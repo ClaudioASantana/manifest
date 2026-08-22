@@ -900,6 +900,7 @@ export class ProxyService {
     // Every public proxy surface treats a concrete model as an explicit route.
     // The resolver accepts both provider-qualified /v1/models IDs and the
     // unambiguous provider-native IDs required by Anthropic clients.
+    /*
     if (requestedModel && requestedModel !== OPENAI_MODEL_ID_AUTO) {
       const explicit = await this.resolveExplicitModel(agentId, tenantId, requestedModel, headers);
       if (explicit) return explicit;
@@ -914,6 +915,7 @@ export class ProxyService {
         explicit_model_unavailable: requestedModel,
       };
     }
+    */
 
     const isHeartbeat = this.detectHeartbeatBody(body, apiMode);
     const recentTiers = sessionMomentumKey
