@@ -154,21 +154,21 @@ describe('Anthropic Adapter', () => {
       expect(result.thinking).toEqual({ type: 'enabled', budget_tokens: 2048 });
     });
 
-    it('preserves adaptive thinking for adaptive-capable Claude models', () => {
+    it('rewrites adaptive thinking to auto for adaptive-capable Claude models', () => {
       const body = {
         messages: [{ role: 'user', content: 'Hi' }],
         thinking: { type: 'adaptive' },
       };
 
       expect(toAnthropicRequest(body, 'claude-sonnet-4-6').thinking).toEqual({
-        type: 'adaptive',
+        type: 'auto',
       });
       expect(toAnthropicRequest(body, 'claude-opus-4-6').thinking).toEqual({
-        type: 'adaptive',
+        type: 'auto',
       });
     });
 
-    it('drops the manual budget when forwarding adaptive thinking', () => {
+    it('drops the manual budget when rewriting adaptive thinking to auto', () => {
       const thinking = { type: 'adaptive', budget_tokens: 8192, display: 'omitted' };
 
       const result = toAnthropicRequest(
@@ -176,7 +176,7 @@ describe('Anthropic Adapter', () => {
         'claude-opus-4-8',
       );
 
-      expect(result.thinking).toEqual({ type: 'adaptive', display: 'omitted' });
+      expect(result.thinking).toEqual({ type: 'auto', display: 'omitted' });
       expect(thinking).toEqual({
         type: 'adaptive',
         budget_tokens: 8192,
@@ -2207,7 +2207,7 @@ describe('Anthropic Adapter', () => {
 
       const result = applyAnthropicMessagesMutations(inbound);
 
-      expect(result.thinking).toEqual({ type: 'adaptive', display: 'omitted' });
+      expect(result.thinking).toEqual({ type: 'auto', display: 'omitted' });
       expect(inbound.thinking).toEqual({
         type: 'adaptive',
         budget_tokens: 8192,

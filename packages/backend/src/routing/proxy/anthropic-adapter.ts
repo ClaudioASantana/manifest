@@ -60,11 +60,12 @@ function shouldForwardAnthropicThinking(thinking: unknown, model: string): boole
 }
 
 function normalizeAnthropicThinking(thinking: unknown): unknown {
-  if (!isObjectRecord(thinking) || thinking.type !== 'adaptive' || !('budget_tokens' in thinking)) {
+  if (!isObjectRecord(thinking) || thinking.type !== 'adaptive') {
     return thinking;
   }
   const normalized = { ...thinking };
   delete normalized.budget_tokens;
+  normalized.type = 'auto';
   return normalized;
 }
 
