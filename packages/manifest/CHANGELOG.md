@@ -1,5 +1,99 @@
 # manifest
 
+## 6.19.1
+
+### Patch Changes
+
+- 196f3b9: Stop accepting rotated or deleted agent API keys immediately across backend replicas.
+- 810319e: Make Auto-fix setting changes take effect immediately across all backend replicas.
+- 2fac033: Apply hard-limit rule and usage changes immediately across backend replicas.
+- f9eecad: Apply message-recording setting changes immediately across backend replicas.
+- 94e3f9f: Fix the harness sidebar rendering after creation in Safari.
+
+## 6.19.0
+
+### Minor Changes
+
+- 44cb47b: Add Meta Model API support for Muse Spark 1.1, Muse Spark 1.2, and the Contributor route.
+- f83ba4f: Support the full Kimi Coding Plan model lineup for Moonshot subscriptions using the wire-format ids the api.kimi.com/coding endpoint expects: k3, k3-256k, kimi-for-coding, and kimi-for-coding-highspeed (the previous curated list sent kimi-k3, which the endpoint does not accept). Includes correct per-model context windows (1M for k3, 256k for the rest, with an explicit k3-256k entry so prefix matching cannot inherit the 1M window), curated input modalities (image+video for k3 and both kimi-for-coding variants, image-only for k3-256k), provider inference for the bare k3 ids, and quality-score overrides so the zero-priced k3 models are not mis-tiered as ultra-low in auto-routing.
+
+### Patch Changes
+
+- c40e550: Show the loading skeleton on the Agent Overview page while switching between agents, instead of leaving the previous agent's data on screen until the new fetch resolves.
+- 215f863: Rename the "AI agents" harness category to "AI agent" so it matches the other singular category labels
+- b27a578: Fix empty non-streaming responses for Bedrock GPT-5.x models (openai.gpt-5.6-luna/sol/terra, gpt-5.5, gpt-5.4). The non-streaming Responses handler assumed the upstream always returns SSE, but the Bedrock mantle /openai/v1/responses endpoint returns a plain JSON Responses object when stream:false, so content came back null with zero usage. The handler now detects the response shape and parses JSON Responses objects directly.
+- 87475e2: Route Bedrock GPT-5.4, GPT-5.5, and GPT-5.6 models through the namespaced OpenAI Responses API path.
+- 9b2704c: Keep OpenAI subscription requests streaming upstream when clients request buffered responses.
+- e821268: Bound dashboard query concurrency and reduce default PostgreSQL pool sizes.
+- 6b4bf29: Cap the provider connections list at six and a half rows so the supported-provider catalog below it stays reachable. The card scrolls, and a "Show all" button expands it to full height.
+- b24ddcb: Calculate GitHub Copilot request costs from live token prices, including long-context tiers.
+- ba1d7b6: Prefer the cost a provider reports over any catalogue estimate. Manifest already read `usage.cost` from responses but only used it for subscription providers, so an exact figure from a gateway such as OpenRouter was captured and then discarded in favour of catalogue arithmetic. Local inference (Ollama, llama.cpp, LM Studio) now records a known `$0` instead of an unknown `null`.
+- 2d5fb92: Bill DeepSeek V4 at its real peak/off-peak rates. Pricing entries can now carry time-of-day tiers (the models.dev `cost.tiers` time variant), cost calculation resolves them against the attempt timestamp, and a built-in seed supplies DeepSeek's schedule until the catalog carries it.
+- ba1d7b6: Stop billing DeepSeek V4 peak rates on weekends: time-of-day pricing tiers now carry the weekdays they apply on, and DeepSeek's 01:00-04:00 / 06:00-10:00 UTC peak windows are Monday-Friday only. Also prices `deepseek-v4-flash-vision-exp`, which billed at the stale flat catalog rate.
+- 061d351: Continue fallback routing when a non-streaming Chat Completions provider returns no output.
+- 3330dae: Refresh cached harness message counts when new requests arrive.
+- 633455b: Show the Meta logo anywhere the dashboard renders provider icons.
+- ab1a544: Keep model parameter specs current: the modelparams catalog now refreshes hourly from the modelparams.dev API (ETag-conditional, validated before swap, stale-on-error) instead of being frozen at the bundled package version, and the bundled fallback is bumped to modelparams 0.0.40.
+- 6b04574: Report modalities and capability flags for Ollama Cloud models. `ollama-cloud` was missing from the models.dev provider map, so every lookup missed and `GET /v1/models?capabilities=true` returned no `input_modalities`, `output_modalities`, or `features` for those models. Release tags that models.dev omits from its key (`:preview`, `:0813`) now fall back to the base model.
+- 0259c8d: Show refreshed provider metadata immediately after manual model discovery.
+- ca21b97: Route OpenCode Go Responses-only models (Grok 4.5, GPT 5.6 Luna, Muse Spark) to `/v1/responses` instead of `/v1/chat/completions`.
+- 7b09c5e: Report tool support and modalities for OpenRouter models. OpenRouter reached neither models.dev provider map, so all 323 published models declared only `stream` and never `tools`, and anything reasoning about capability — the dashboard picker, `/v1/models?capabilities=true`, agents choosing a remap target — treated every one of them as tool-incapable. OpenRouter now sits in the capability-only map, so its rates stay with its own live `/models` feed while models.dev supplies the modalities and tool-call flags that feed omits. Routing variants (`:free`, `:nitro`, `:batch`) resolve to their base model's capabilities.
+- fe8677e: Cost each request with the price of the provider that actually served it. The pricing cache was keyed by model name alone, so every provider selling a model wrote to the same key and only the last one survived — 24 providers list `deepseek-v4-pro`, and DeepSeek is not the one that won. A request to DeepSeek's own API was billed at OpenCode Zen's resale rate, roughly 3.7x the real price on an agent-shaped token mix.
+- 0d244d0: Fix Responses→chat-completions conversion emitting content-less `{"role":"user"}` messages for `reasoning`, `item_reference`, and other non-message input items, which strict OpenAI-compatible providers rejected with 400/422.
+- bf7876a: Restore the $25 Gemini credit user-discovery banner and modal on the Overview page
+- 6c29c71: Sanitize tool_use ids emitted on /v1/messages responses so non-Anthropic upstream ids (e.g. `Edit:0`) no longer poison session histories against Anthropic's id pattern
+- ecb3c8d: Spell Autofix without a hyphen across the dashboard, notifications, and emails.
+- 549bece: Stop advertising Gemini 3.1 Pro Preview and Gemini 3 Flash Preview for Google Code Assist subscriptions because the Code Assist API returns model-not-found responses for both routes.
+- 7b09c5e: Report modalities and capability flags for Kilo, Pioneer, Cline Pass and Xiaomi models. These providers publish no modality data on their own `/models` endpoints, and models.dev may not price them: they list resold vendor models under the vendor's own ID, so their rates would overwrite the real vendor price in the shared cache. A new capability-only provider map carries them, separate from the map that grants pricing authority.
+
+## 6.18.0
+
+### Minor Changes
+
+- f9eb3d8: Enable hosted Auto-fix for self-hosted installs: one-time consent with an option to turn it on for every existing agent, identified by the anonymous install id.
+- 1e4cac8: Add opt-in Provider Attempt message recording with tenant-scoped durable filesystem or S3-compatible storage.
+
+### Patch Changes
+
+- 1b633b6: Fix horizontal overflow in request drawer: error, autofix and fallback context cards now span full width, long error messages wrap instead of scrolling horizontally, and the tabs bar uses a muted background.
+- 59f0e37: Enable automatic prompt caching for Anthropic API keys and OpenRouter Claude models.
+- 205e25c: Auto-fix retries a healed model on the original provider transport when routing cannot resolve it (stale tenant model cache), instead of synthesizing a 502
+- 31eaa75: Auto-fix always closes the evidence loop with Phoenix: a retry that dies mid-flight is reported as a synthetic 499 instead of leaving the heal attempt pending, and a dropped outcome report is resent before giving up
+- f299e4b: Route Bedrock OpenAI and Anthropic models through their compatible Responses and Messages API surfaces.
+- d040011: Stop blocking `/billing/status` and free-tier admission on the historical request-usage baseline scan; return the live counter immediately and finish the baseline in the background. Dashboards no longer wait on billing at all: the plan is resolved once at login via the new light `GET /api/v1/billing/plan` and read synchronously, so Overview, Global Overview, and the Requests log fetch each chart exactly once at the right range.
+- 42a750b: Open routing model pickers from cached provider models and refresh stale catalogs only once per browser session each day.
+- 95c17cf: Cache provider usage aggregates and coalesce live dashboard refreshes.
+- f8cbfd8: Classify Anthropic subscription extra-usage errors as billing without sending them to Auto-fix.
+- 89de9cd: Keep the routing page mounted while refreshed model data loads.
+- 060b42b: Preserve GPT-5.6 reasoning summaries on inbound Chat Completions: map the standard `reasoning_effort` param onto the Responses `reasoning` object (with `summary: auto`) for OpenAI endpoints so the model actually reasons, prefix-match Responses reasoning-summary delta events instead of an exact-name allowlist, and backfill `reasoning_content` from the terminal `response.completed`/`response.incomplete` output when no summary deltas streamed.
+- fb8beb2: Prepare DeepSeek reasoning tool turns once before each provider attempt.
+- 6ac0908: Keep subscription model availability scoped to provider discovery and curated model lists.
+- 3ed45a4: Enable message recording by default for newly created harnesses without changing existing harness settings.
+- e56afee: Forward explicit uncatalogued models to connected providers so real model errors can reach Auto-fix.
+- b4f85dd: Load paginated requests before aggregating attempts and refresh exact totals separately.
+- 01a6966: Keep provider-cooldown skips and successful fallbacks as separate ordered Attempts in Request timelines.
+- 934416d: Reject billing-enabled Cloud startup when request quota and process timezones differ.
+- b6b5db5: Add a Gemini Free provider with Gemini-scoped keys and a reusable managed free-provider
+  configuration. Use the existing managed gateway by default.
+- ca18aad: Prevent headerless Codex subscription requests from sharing token-wide cache affinity.
+- fa15665: Preserve native Responses and Anthropic Messages requests until cross-protocol conversion is required.
+- 6d49e02: Record provider cache-write usage consistently across response formats.
+- 06b0715: Make Auto-fix available to every tenant and retire the early-access waitlist.
+- cdb9028: Preserve OpenRouter input and output modalities during model discovery.
+- ecc29b6: Preserve redacted structured provider error details in proxy responses.
+- 04710be: Simplify model parameter requests with a prefilled GitHub issue.
+- 538d021: Improve request message drawer: markdown rendering, JSON syntax highlighting, gear icon for tool calls, wider drawer, Tools tab shows called and available tools separately.
+- e4b6e6c: Remove the legacy Auto-fix tenant rollout columns after general availability.
+- bd4b560: Honor requested model routes on the Anthropic Messages endpoint.
+- d1d2ea7: Scope proxy replay caches and routing momentum to their owning tenant and agent.
+- 4c42c24: Scope provider prompt cache affinity to explicit tenant and agent sessions.
+- eaa4026: Show actual Provider Attempt tool calls instead of available tool definitions in recorded message details.
+- 3f7f7cf: Show complete Gemini request messages, including system instructions.
+- 1ee0634: Show recorded Gemini streaming responses in Provider Attempt message details.
+- a0834db: Record Manifest-authored routing failures, including provider cooldown skips, as failed Attempts so the Request drawer shows the full routing chain.
+- df19e6e: Keep the routing model picker open while refreshed model data loads.
+- 064e462: Keep `reasoning_content` on OpenCode Zen requests. The reasoning dialect is now decided by the models.dev reasoning capability instead of a model-family regex, so Zen's DeepSeek and codename reasoning models replay their thinking while Claude/GPT/Gemini/Grok slugs keep stripping it.
+
 ## 6.17.1
 
 ### Patch Changes

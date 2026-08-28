@@ -1,12 +1,19 @@
 import { createHash } from 'crypto';
-import { HttpStatus, Injectable, Logger, Optional } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { OPENAI_RESPONSES_ONLY_RE, stripVendorPrefix } from '../../common/constants/openai-models';
 import { XAI_RESPONSES_ONLY_RE } from '../../common/constants/xai-models';
-import { PROVIDER_ENDPOINTS, ProviderEndpoint, resolveEndpointKey } from './provider-endpoints';
+import {
+  PROVIDER_ENDPOINTS,
+  ProviderEndpoint,
+  resolveBedrockEndpointKey,
+  resolveEndpointKey,
+} from './provider-endpoints';
 import { validatePublicUrl } from '../../common/utils/url-validation';
 import { isSelfHosted } from '../../common/utils/detect-self-hosted';
 import { resolveSubscriptionEndpointKey } from './provider-hooks';
 import { injectOpenAiMessageCacheControl, injectOpenRouterCacheControl } from './cache-injection';
+import type { ReasoningModelCatalog } from './reasoning-format';
+import { ModelsDevReasoningCatalog } from './reasoning-model-catalog';
 import {
   applyAnthropicAutomaticCacheControl,
   applyAnthropicMessagesMutations,
@@ -16,7 +23,7 @@ import {
   sanitizeOpenAiBody,
   collectChatGptSseResponse as chatGptSseCollector,
   convertChatGptResponse as chatGptResponseConverter,
-  convertChatGptStreamChunk as chatGptStreamChunkConverter,
+  createChatGptStreamTransformer as chatGptStreamTransformerFactory,
   convertGoogleResponse as googleResponseConverter,
   convertGoogleStreamChunk as googleStreamChunkConverter,
   convertAnthropicResponse as anthropicResponseConverter,
@@ -126,6 +133,52 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
+function hasChatCompletionOutput(message: Record<string, unknown>): boolean {
+  return Object.entries(message).some(([key, value]) => {
+    if (key === 'role' || value == null) return false;
+    if (typeof value === 'string' || Array.isArray(value)) return value.length > 0;
+    return true;
+  });
+}
+
+function isEmptyChatCompletion(body: unknown): boolean {
+  if (!isRecord(body) || !Array.isArray(body.choices)) return false;
+  return body.choices.every(
+    (choice) =>
+      isRecord(choice) &&
+      choice.finish_reason === 'stop' &&
+      isRecord(choice.message) &&
+      !hasChatCompletionOutput(choice.message),
+  );
+}
+
+async function qualifyEmptyChatCompletion(
+  response: Response,
+  attempt?: ProviderAttemptRef,
+): Promise<Response> {
+  if (response.status !== HttpStatus.OK) return response;
+
+  let body: unknown;
+  try {
+    body = await response.clone().json();
+  } catch {
+    return response;
+  }
+  if (!isEmptyChatCompletion(body)) return response;
+  await attempt?.finishRecording?.({ type: 'json', body });
+
+  return new Response(
+    JSON.stringify({
+      error: {
+        message: 'Upstream provider returned an empty Chat Completions response',
+        type: 'server_error',
+        code: 'empty_response',
+      },
+    }),
+    { status: HttpStatus.BAD_GATEWAY, headers: { 'content-type': 'application/json' } },
+  );
+}
+
 function responsesTextFormat(
   body: Record<string, unknown>,
   apiMode: ForwardOptions['apiMode'],
@@ -230,6 +283,9 @@ export class ProviderClient {
     private readonly modelRegistry?: ProviderModelRegistryService,
     @Optional()
     codexAffinity?: CodexSessionAffinity,
+    @Optional()
+    @Inject(ModelsDevReasoningCatalog)
+    private readonly reasoningCatalog?: ReasoningModelCatalog,
   ) {
     this.codexAffinity = codexAffinity ?? new CodexSessionAffinity();
   }
@@ -344,7 +400,7 @@ export class ProviderClient {
 
       // SSRF defense in depth for user-supplied endpoint URLs (custom providers,
       // subscription resource URLs). Re-check every actual forward, including
-      // an immediate Auto-fix retry, because DNS may have rebound in between.
+      // an immediate Autofix retry, because DNS may have rebound in between.
       if (endpoint.requiresSsrfRevalidation) {
         try {
           await validatePublicUrl(url, { allowPrivate: isSelfHosted() });
@@ -363,15 +419,21 @@ export class ProviderClient {
         structuredOutputToolName,
         responsesTextFormat: textFormat,
       });
+      const response =
+        !stream &&
+        endpoint.format === 'openai' &&
+        (opts.apiMode === undefined || opts.apiMode === 'chat_completions')
+          ? await qualifyEmptyChatCompletion(result.response, attempt)
+          : result.response;
       const qualifiedResult =
         endpointKey === 'openai-subscription'
           ? {
               ...result,
-              response: await qualifyChatGptResponse(result.response, {
+              response: await qualifyChatGptResponse(response, {
                 downstreamFormat: isResponses ? 'responses' : 'chat-completions',
               }),
             }
-          : result;
+          : { ...result, response };
       if (affinity) this.codexAffinity.capture(affinity.storeKey, qualifiedResult.response);
       return {
         ...qualifiedResult,
@@ -403,6 +465,9 @@ export class ProviderClient {
     if (authType === 'subscription') {
       const override = resolveSubscriptionEndpointKey(resolved);
       if (override) resolved = override;
+    }
+    if (resolved === 'bedrock') {
+      resolved = resolveBedrockEndpointKey(model);
     }
     if (resolved === 'qwen-subscription') {
       const bareQwenModel = stripVendorPrefix(model);
@@ -437,10 +502,14 @@ export class ProviderClient {
     }
     if (resolved === 'opencode-go') {
       const bareOpenCodeModel = stripVendorPrefix(model).toLowerCase();
-      const knownAnthropicFamily = this.isKnownOpencodeGoAnthropicFamily(bareOpenCodeModel);
       const catalogFormat = await this.resolveOpencodeGoFormat(bareOpenCodeModel);
-      if (catalogFormat === 'anthropic' || (!catalogFormat && knownAnthropicFamily)) {
-        resolved = 'opencode-go-anthropic';
+      if (catalogFormat === 'responses') {
+        resolved = 'opencode-go-responses';
+      } else {
+        const knownAnthropicFamily = this.isKnownOpencodeGoAnthropicFamily(bareOpenCodeModel);
+        if (catalogFormat === 'anthropic' || (!catalogFormat && knownAnthropicFamily)) {
+          resolved = 'opencode-go-anthropic';
+        }
       }
     }
     if (resolved === 'commandcode') {
@@ -469,7 +538,9 @@ export class ProviderClient {
     return { endpoint: PROVIDER_ENDPOINTS[resolved], endpointKey: resolved };
   }
 
-  private async resolveOpencodeGoFormat(bareModel: string): Promise<'openai' | 'anthropic' | null> {
+  private async resolveOpencodeGoFormat(
+    bareModel: string,
+  ): Promise<'openai' | 'anthropic' | 'responses' | null> {
     if (!this.opencodeGoCatalog) return null;
     try {
       return await this.opencodeGoCatalog.resolveFormat(bareModel);
@@ -632,22 +703,33 @@ export class ProviderClient {
               stripCodexUnsupported: endpointKey === 'openai-subscription',
             })
           : toResponsesRequest(requestSource, bareModel, {
+              // The subscription backend only serves SSE. Manifest buffers it
+              // for non-streaming callers in handleNonStreamResponse.
               stream:
-                endpointKey === 'openai-responses' || endpointKey === 'xai-responses'
-                  ? ctx.stream
-                  : undefined,
+                endpointKey === 'openai-subscription'
+                  ? true
+                  : endpointKey === 'openai-responses' ||
+                      endpointKey === 'xai-responses' ||
+                      endpoint.forwardResponsesStream
+                    ? ctx.stream
+                    : undefined,
               // The ChatGPT subscription backend rejects max_output_tokens with
               // unsupported_parameter; only opt in for the API-key paths.
               mapMaxOutputTokens:
                 endpointKey === 'openai-responses' ||
                 endpointKey === 'copilot-responses' ||
-                endpointKey === 'xai-responses',
+                endpointKey === 'xai-responses' ||
+                endpoint.acceptsMaxOutputTokens,
               // OpenAI and xAI /responses endpoints accept prompt_cache_key.
               // Other Responses-shaped backends may 400 on unknown params.
               forwardPromptCacheKey:
                 endpointKey === 'openai-subscription' ||
                 endpointKey === 'openai-responses' ||
                 endpointKey === 'xai-responses',
+              // Only OpenAI infrastructure is known to accept
+              // reasoning.summary; other Responses backends may 400 on it.
+              mapReasoningEffort:
+                endpointKey === 'openai-subscription' || endpointKey === 'openai-responses',
             });
       if (endpointKey === 'xai-responses') {
         applyHashedPromptCacheKey(requestBody, ctx.providerCacheKey);
@@ -670,7 +752,12 @@ export class ProviderClient {
     }
 
     // OpenAI-compatible path (default)
-    const sanitized = sanitizeOpenAiBody(requestSource, endpointKey, ctx.model);
+    const sanitized = sanitizeOpenAiBody(
+      requestSource,
+      endpointKey,
+      ctx.model,
+      this.reasoningCatalog,
+    );
     if (stream && endpoint.streamUsageReporting === 'openai_stream_options') {
       const existing =
         typeof sanitized.stream_options === 'object' && sanitized.stream_options !== null
@@ -777,7 +864,7 @@ export class ProviderClient {
    * wrapper frame, while remaining mockable via DI in tests.
    */
   readonly convertChatGptResponse = chatGptResponseConverter;
-  readonly convertChatGptStreamChunk = chatGptStreamChunkConverter;
+  readonly createChatGptStreamTransformer = chatGptStreamTransformerFactory;
   readonly convertGoogleResponse = googleResponseConverter;
   readonly convertGoogleStreamChunk = googleStreamChunkConverter;
   readonly convertAnthropicResponse = anthropicResponseConverter;

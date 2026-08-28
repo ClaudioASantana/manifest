@@ -2,14 +2,11 @@ import { Show, type Component } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { USER_DISCOVERY_BOOKING_URL } from './UserDiscoveryBanner.jsx';
 
-export const USER_DISCOVERY_MODAL_DISMISSED_KEY =
-  'manifest:user-discovery-modal-dismissed:v1';
+export const USER_DISCOVERY_MODAL_DISMISSED_KEY = 'manifest:user-discovery-modal-dismissed:v1';
 
 export function readUserDiscoveryModalDismissed(): boolean {
   try {
-    return (
-      window.localStorage.getItem(USER_DISCOVERY_MODAL_DISMISSED_KEY) === 'true'
-    );
+    return window.localStorage.getItem(USER_DISCOVERY_MODAL_DISMISSED_KEY) === 'true';
   } catch {
     return false;
   }
@@ -87,12 +84,8 @@ const UserDiscoveryModal: Component<UserDiscoveryModalProps> = (props) => {
               </button>
             </div>
             <div class="user-discovery-modal__body">
-              <h2
-                id="user-discovery-modal-title"
-                class="user-discovery-modal__title"
-              >
-                Talk to us and get{' '}
-                <mark class="user-discovery-modal__highlight">$25</mark> credit
+              <h2 id="user-discovery-modal-title" class="user-discovery-modal__title">
+                Talk to us and get <mark class="user-discovery-modal__highlight">$25</mark> credit
                 for{' '}
                 <img
                   class="user-discovery-modal__title-logo"
@@ -102,8 +95,8 @@ const UserDiscoveryModal: Component<UserDiscoveryModalProps> = (props) => {
                 .
               </h2>
               <p class="user-discovery-modal__subtitle">
-                We're doing user discovery to understand your expectations and
-                pain points around agent reliability.
+                We're doing user discovery to understand your expectations and pain points around
+                agent reliability.
               </p>
               <ul class="user-discovery-modal__features">
                 {benefits.map((f) => (

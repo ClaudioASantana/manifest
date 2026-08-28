@@ -32,6 +32,8 @@ import {
 import {
   getSubscriptionCapabilities,
   getSubscriptionKnownModels,
+  META_MODEL_API_CONTEXT_WINDOW,
+  META_MODEL_API_MODEL_BY_ID,
   MODEL_MODALITIES,
   type ModelCapability,
   type ModelModality,
@@ -57,6 +59,8 @@ const NOUS_PORTAL_MODELS_URL = 'https://inference-api.nousresearch.com/v1/models
 const OPENCODE_GO_MODELS_URL = 'https://opencode.ai/zen/go/v1/models';
 const PIONEER_MODELS_URL = 'https://api.pioneer.ai/v1/models';
 const PIONEER_BASE_MODELS_URL = 'https://api.pioneer.ai/base-models';
+const META_MODELS_URL = 'https://api.meta.ai/v1/models';
+const COPILOT_AI_CREDIT_USD = 0.01;
 
 /* ── Generic parser factory ── */
 
@@ -68,7 +72,10 @@ interface ModelParserConfig<T> {
   contextWindow?: number | ((entry: T) => number);
   inputPricePerToken?: number | null;
   outputPricePerToken?: number | null;
+  capabilityReasoning?: boolean;
   capabilityCode?: boolean | ((entry: T) => boolean);
+  inputModalities?: readonly ModelModality[];
+  outputModalities?: readonly ModelModality[];
   supportedEndpoints?: (entry: T) => readonly string[] | undefined;
   qualityScore?: number;
 }
@@ -93,11 +100,13 @@ function createModelParser<T>(
           contextWindow: typeof ctxVal === 'function' ? ctxVal(entry) : ctxVal,
           inputPricePerToken: config.inputPricePerToken ?? null,
           outputPricePerToken: config.outputPricePerToken ?? null,
-          capabilityReasoning: false,
+          capabilityReasoning: config.capabilityReasoning ?? false,
           capabilityCode:
             typeof config.capabilityCode === 'function'
               ? config.capabilityCode(entry)
               : (config.capabilityCode ?? false),
+          ...(config.inputModalities ? { inputModalities: config.inputModalities } : {}),
+          ...(config.outputModalities ? { outputModalities: config.outputModalities } : {}),
           ...(supportedEndpoints && supportedEndpoints.length > 0 ? { supportedEndpoints } : {}),
           qualityScore: config.qualityScore ?? 3,
         };
@@ -348,6 +357,18 @@ const parseXiaomiMimo = createModelParser<OpenAIModelEntry>({
   capabilityCode: true,
 });
 
+const parseMeta = createModelParser<OpenAIModelEntry>({
+  arrayKey: 'data',
+  filter: (entry) => typeof entry.id === 'string' && META_MODEL_API_MODEL_BY_ID.has(entry.id),
+  getId: (entry) => entry.id,
+  getDisplayName: (_entry, id) => META_MODEL_API_MODEL_BY_ID.get(id)?.displayName ?? id,
+  contextWindow: META_MODEL_API_CONTEXT_WINDOW,
+  capabilityReasoning: true,
+  capabilityCode: true,
+  inputModalities: ['text', 'image', 'audio', 'video'],
+  outputModalities: ['text'],
+});
+
 /* ── OpenAI-specific structural filters (not non-chat) ── */
 
 /** Date-suffixed snapshots returned by OpenAI (e.g. gpt-4o-mini-2024-07-18). */
@@ -400,6 +421,10 @@ export const PROVIDER_NON_CHAT: Record<string, RegExp> = {
   // must NOT be filtered.
   gemini:
     /(?:^aqs-|nano-banana|^deep-research|computer-use|^lyria|^gemini-2\.0-flash-lite$|flash-lite-preview-\d{2}-\d{4}$|robotics)/i,
+  // Vertex serves the same non-chat families as the Gemini API, plus Imagen
+  // and Veo under their own names.
+  vertex:
+    /(?:^aqs-|nano-banana|^deep-research|computer-use|^lyria|^imagen|^veo|robotics|flash-lite-preview-\d{2}-\d{4}$)/i,
   ...Object.fromEntries(
     MANAGED_FREE_PROVIDER_CONFIGS.map((config) => [config.id, config.nonChatModelPattern]),
   ),
@@ -718,15 +743,110 @@ const parseOpenaiSubscription = createModelParser<OpenAISubscriptionModelEntry>(
 
 /* ── GitHub Copilot (subscription-only, OpenAI-compatible /models) ── */
 
-const parseCopilot = createModelParser<OpenAIModelEntry>({
-  arrayKey: 'data',
-  filter: (entry) => typeof entry.id === 'string' && entry.id.length > 0,
-  getId: (entry) => `copilot/${entry.id}`,
-  getDisplayName: (entry) => entry.id,
-  inputPricePerToken: 0,
-  outputPricePerToken: 0,
-  supportedEndpoints: (entry) => getStringArray(entry.supported_endpoints),
-});
+interface CopilotTokenPriceTier {
+  input_price?: unknown;
+  output_price?: unknown;
+  cache_price?: unknown;
+  cache_read_price?: unknown;
+  cache_write_price?: unknown;
+  context_max?: unknown;
+  max_prompt_tokens?: unknown;
+}
+
+interface CopilotModelEntry extends OpenAIModelEntry {
+  billing?: {
+    token_prices?: {
+      batch_size?: unknown;
+      default?: CopilotTokenPriceTier;
+      long_context?: CopilotTokenPriceTier;
+    };
+  };
+}
+
+function copilotUsdPerToken(price: unknown, batchSize: unknown): number | null {
+  if (typeof price !== 'number' || !Number.isFinite(price) || price < 0) return null;
+  const tokenBatchSize = batchSize ?? 1_000_000;
+  if (
+    typeof tokenBatchSize !== 'number' ||
+    !Number.isFinite(tokenBatchSize) ||
+    tokenBatchSize <= 0
+  ) {
+    return null;
+  }
+  return (price * COPILOT_AI_CREDIT_USD) / tokenBatchSize;
+}
+
+function copilotContextMax(tier: CopilotTokenPriceTier | undefined): number | null {
+  const value = tier?.context_max ?? tier?.max_prompt_tokens;
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+function copilotPriceTier(
+  tier: CopilotTokenPriceTier | undefined,
+  batchSize: unknown,
+): Omit<NonNullable<DiscoveredModel['longContextPricing']>, 'thresholdTokens'> | null {
+  const inputPricePerToken = copilotUsdPerToken(tier?.input_price, batchSize);
+  const outputPricePerToken = copilotUsdPerToken(tier?.output_price, batchSize);
+  if (inputPricePerToken === null || outputPricePerToken === null) return null;
+
+  const cacheReadPricePerToken = copilotUsdPerToken(
+    tier?.cache_read_price ?? tier?.cache_price,
+    batchSize,
+  );
+  const cacheWritePricePerToken = copilotUsdPerToken(tier?.cache_write_price, batchSize);
+  return {
+    inputPricePerToken,
+    outputPricePerToken,
+    ...(cacheReadPricePerToken !== null ? { cacheReadPricePerToken } : {}),
+    ...(cacheWritePricePerToken !== null ? { cacheWritePricePerToken } : {}),
+  };
+}
+
+function parseCopilot(body: unknown, provider: string): DiscoveredModel[] {
+  const data = (body as { data?: unknown })?.data;
+  if (!Array.isArray(data)) return [];
+
+  return data.flatMap((raw): DiscoveredModel[] => {
+    const entry = raw as CopilotModelEntry;
+    if (typeof entry.id !== 'string' || entry.id.length === 0) return [];
+
+    const tokenPrices = entry.billing?.token_prices;
+    const defaultPricing = copilotPriceTier(tokenPrices?.default, tokenPrices?.batch_size);
+    const longContextThreshold = copilotContextMax(tokenPrices?.default);
+    const longContextTier = copilotPriceTier(tokenPrices?.long_context, tokenPrices?.batch_size);
+    const longContextPricing =
+      defaultPricing && longContextTier && longContextThreshold
+        ? { thresholdTokens: longContextThreshold, ...longContextTier }
+        : null;
+    const contextWindow =
+      copilotContextMax(tokenPrices?.long_context) ??
+      longContextThreshold ??
+      DEFAULT_CONTEXT_WINDOW;
+    const supportedEndpoints = getStringArray(entry.supported_endpoints);
+
+    return [
+      {
+        id: `copilot/${entry.id}`,
+        displayName: entry.id,
+        provider,
+        contextWindow,
+        inputPricePerToken: defaultPricing?.inputPricePerToken ?? 0,
+        outputPricePerToken: defaultPricing?.outputPricePerToken ?? 0,
+        ...(defaultPricing?.cacheReadPricePerToken !== undefined
+          ? { cacheReadPricePerToken: defaultPricing.cacheReadPricePerToken }
+          : {}),
+        ...(defaultPricing?.cacheWritePricePerToken !== undefined
+          ? { cacheWritePricePerToken: defaultPricing.cacheWritePricePerToken }
+          : {}),
+        ...(longContextPricing ? { longContextPricing } : {}),
+        capabilityReasoning: false,
+        capabilityCode: false,
+        ...(supportedEndpoints ? { supportedEndpoints } : {}),
+        qualityScore: 3,
+      },
+    ];
+  });
+}
 
 /* ── OpenCode Zen (aggregator, OpenAI-compatible /models) ── */
 
@@ -850,6 +970,11 @@ export const PROVIDER_CONFIGS: Record<string, FetcherConfig> = {
     endpoint: 'https://api.minimaxi.chat/v1/models',
     buildHeaders: bearerHeaders,
     parse: parseOpenAI,
+  },
+  meta: {
+    endpoint: META_MODELS_URL,
+    buildHeaders: bearerHeaders,
+    parse: parseMeta,
   },
   'minimax-subscription': {
     endpoint: MINIMAX_SUBSCRIPTION_MODELS_URL,
@@ -983,8 +1108,8 @@ export class ProviderModelFetcherService {
     } else if (configKey === 'xiaomi' && authType === 'subscription') {
       configKey = 'xiaomi-subscription';
     } else if (configKey === 'moonshot' && authType === 'subscription') {
-      // Kimi Code documents a fixed subscription model id (`kimi-for-coding`)
-      // rather than a subscription-scoped /models endpoint.
+      // Kimi Code documents a fixed subscription model catalog rather than a
+      // subscription-scoped /models endpoint.
       return [];
     } else if (configKey === 'qwen' && authType === 'subscription') {
       configKey = 'qwen-subscription';

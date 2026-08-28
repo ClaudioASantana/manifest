@@ -1,6 +1,10 @@
 /* ── LLM Provider definitions (shared by Routing page) ── */
 
-import { SHARED_PROVIDER_BY_ID, type SharedProviderEntry } from 'manifest-shared';
+import {
+  META_MODEL_API_MODELS,
+  SHARED_PROVIDER_BY_ID,
+  type SharedProviderEntry,
+} from 'manifest-shared';
 
 export interface SubscriptionEndpointRegion {
   value: string;
@@ -156,6 +160,11 @@ const PROVIDER_UI: Record<string, ProviderUIOverlay> = {
     supportsSubscription: true,
     subscriptionLabel: 'Claude Max / Pro subscription',
     subscriptionAuthMode: 'popup_paste',
+    models: [],
+  },
+  vertex: {
+    initial: 'GV',
+    subtitle: 'Gemini via Google Cloud Vertex AI',
     models: [],
   },
   bedrock: {
@@ -321,6 +330,14 @@ const PROVIDER_UI: Record<string, ProviderUIOverlay> = {
       dividerLabel: 'Or paste your Coding Plan token',
     },
     models: [],
+  },
+  meta: {
+    initial: 'Me',
+    subtitle: 'Muse Spark 1.2, Contributor, and 1.1',
+    models: META_MODEL_API_MODELS.map((model) => ({
+      label: model.displayName,
+      value: model.id,
+    })),
   },
   xiaomi: {
     initial: 'Mi',
@@ -498,12 +515,14 @@ const PROVIDER_ORDER = [
   'gemini-free',
   'copilot',
   'gemini',
+  'vertex',
   'groq',
   'huggingface',
   'kilo',
   'kiro',
   'llamacpp',
   'lmstudio',
+  'meta',
   'minimax',
   'mistral',
   'moonshot',
