@@ -88,8 +88,8 @@ const unavailableCapabilityLabel = (capability: ModelCapability): string => {
 };
 
 const ModelPickerModal: Component<Props> = (props) => {
-  const isUsable = (p: { is_active: boolean; has_api_key: boolean; cached_model_count?: number }) =>
-    p.is_active && (p.has_api_key || (p.cached_model_count ?? 0) > 0);
+  const isUsable = (p: { provider: string; is_active: boolean; has_api_key: boolean; cached_model_count?: number }) =>
+    p.is_active && (p.provider.startsWith('custom:') || p.has_api_key || (p.cached_model_count ?? 0) > 0);
   const hasSubscription = () =>
     (props.connectedProviders ?? []).some((p) => isUsable(p) && p.auth_type === 'subscription');
   const hasApiKey = () =>
