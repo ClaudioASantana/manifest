@@ -900,9 +900,11 @@ export class ProxyService {
     // Every public proxy surface treats a concrete model as an explicit route.
     // The resolver accepts both provider-qualified /v1/models IDs and the
     // unambiguous provider-native IDs required by Anthropic clients.
-    // NOTE: Direct model routing disabled as requested (consider as without direct).
-    /*
-    if (requestedModel && requestedModel !== OPENAI_MODEL_ID_AUTO) {
+    if (
+      requestedModel &&
+      requestedModel !== OPENAI_MODEL_ID_AUTO &&
+      process.env.DISABLE_DIRECT_MODEL_ROUTING !== 'true'
+    ) {
       const explicit = await this.resolveExplicitModel(agentId, tenantId, requestedModel, headers);
       if (explicit) return explicit;
       return {
@@ -916,7 +918,6 @@ export class ProxyService {
         explicit_model_unavailable: requestedModel,
       };
     }
-    */
 
     const isHeartbeat = this.detectHeartbeatBody(body, apiMode);
     const recentTiers = sessionMomentumKey

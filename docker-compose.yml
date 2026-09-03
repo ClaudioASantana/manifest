@@ -97,6 +97,7 @@ services:
       # Anonymous usage telemetry (opt-out). Set to 1 to disable. See
       # https://manifest.build/telemetry for the exact payload shape.
       - MANIFEST_TELEMETRY_DISABLED=${MANIFEST_TELEMETRY_DISABLED:-0}
+      - DISABLE_DIRECT_MODEL_ROUTING=${DISABLE_DIRECT_MODEL_ROUTING:-true}
     depends_on:
       postgres:
         condition: service_healthy
@@ -123,6 +124,8 @@ services:
         max-size: "10m"
         max-file: "5"
     read_only: true
+    volumes:
+      - manifest_data:/data
     tmpfs:
       - /tmp:size=64m
     security_opt:
@@ -175,3 +178,5 @@ volumes:
   # against a fresh empty DB — i.e. data loss.
   pgdata:
     name: manifest_pgdata
+  manifest_data:
+    name: manifest_data
