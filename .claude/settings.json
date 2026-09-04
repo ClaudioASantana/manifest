@@ -1,4 +1,9 @@
 {
+  "model": "auto",
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://192.168.1.10:2099",
+    "ANTHROPIC_AUTH_TOKEN": "mnfst_0uQF-PvTE0FK6ZNkqI2Us6U3SCkafmTSM78x8NFTudA"
+  },
   "hooks": {
     "PostToolUse": [
       {

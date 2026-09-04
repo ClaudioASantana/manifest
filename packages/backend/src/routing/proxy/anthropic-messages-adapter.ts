@@ -680,11 +680,16 @@ function closeStream(state: StreamState): string[] {
   closeTextBlock(state, events);
   closeOpenToolCalls(state, events);
 
+  const finalStopReason =
+    state.toolCalls.size > 0 && state.stopReason !== 'max_tokens'
+      ? 'tool_use'
+      : (state.stopReason ?? 'end_turn');
+
   events.push(
     formatMessagesEvent('message_delta', {
       type: 'message_delta',
       delta: {
-        stop_reason: state.stopReason ?? 'end_turn',
+        stop_reason: finalStopReason,
         stop_sequence: null,
       },
       usage: state.finalUsage ?? toAnthropicUsage({}),
