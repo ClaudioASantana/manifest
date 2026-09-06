@@ -528,6 +528,9 @@ function transformStreamChunk(chunk: string, state: StreamState): string | null 
         const callIndex = typeof call.index === 'number' ? call.index : 0;
         let entry = state.toolCalls.get(callIndex);
         if (!entry) {
+          // Anthropic strictly requires sequential content blocks. Close any
+          // currently open tool_use block before opening the next one.
+          closeOpenToolCalls(state, events);
           entry = {
             id:
               typeof call.id === 'string' && call.id !== ''
