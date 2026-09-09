@@ -42,17 +42,18 @@ describe("FRAMEWORK_TABS", () => {
 });
 
 describe("TOOLKIT_TABS", () => {
-  it("has five tabs", () => {
-    expect(TOOLKIT_TABS).toHaveLength(5);
+  it("has six tabs", () => {
+    expect(TOOLKIT_TABS).toHaveLength(6);
   });
 
-  it("contains openai-sdk, anthropic-sdk, vercel-ai-sdk, langchain, curl", () => {
+  it("contains openai-sdk, anthropic-sdk, vercel-ai-sdk, langchain, cursor, curl", () => {
     const ids = TOOLKIT_TABS.map((t) => t.id);
     expect(ids).toEqual([
       "openai-sdk",
       "anthropic-sdk",
       "vercel-ai-sdk",
       "langchain",
+      "cursor",
       "curl",
     ]);
   });
@@ -62,7 +63,8 @@ describe("TOOLKIT_TABS", () => {
     expect(TOOLKIT_TABS[1].label).toBe("Anthropic SDK");
     expect(TOOLKIT_TABS[2].label).toBe("Vercel AI SDK");
     expect(TOOLKIT_TABS[3].label).toBe("LangChain");
-    expect(TOOLKIT_TABS[4].label).toBe("cURL");
+    expect(TOOLKIT_TABS[4].label).toBe("Cursor IDE");
+    expect(TOOLKIT_TABS[5].label).toBe("cURL");
   });
 
   it("has icons for openai, anthropic, vercel, and langchain", () => {
@@ -71,6 +73,7 @@ describe("TOOLKIT_TABS", () => {
     expect(TOOLKIT_TABS[2].icon).toBe("/icons/vercel.svg");
     expect(TOOLKIT_TABS[3].icon).toBe("/icons/langchain.svg");
     expect(TOOLKIT_TABS[4].icon).toBeUndefined();
+    expect(TOOLKIT_TABS[5].icon).toBeUndefined();
   });
 });
 
@@ -495,6 +498,14 @@ describe("getSnippetForToolkit", () => {
     expect(result.code).toContain("ChatOpenAI");
   });
 
+  it("returns Cursor snippet for cursor", () => {
+    const result = getSnippetForToolkit("cursor", "http://x/v1", "key");
+    expect(result.title).toBe("Cursor IDE Setup");
+    expect(result.code).toContain("http://x/v1");
+    expect(result.code).toContain("key");
+    expect(result.code).toContain("Override OpenAI Base URL");
+  });
+
   it("returns cURL snippet for curl", () => {
     const result = getSnippetForToolkit("curl", "http://x/v1", "key");
     expect(result.title).toBe("cURL");
@@ -535,6 +546,10 @@ describe("getLangForToolkit", () => {
 
   it("returns python for langchain", () => {
     expect(getLangForToolkit("langchain")).toBe("python");
+  });
+
+  it("returns json for cursor", () => {
+    expect(getLangForToolkit("cursor")).toBe("json");
   });
 
   it("returns bash for curl", () => {

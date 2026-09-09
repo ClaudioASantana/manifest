@@ -85,6 +85,31 @@ function detectSdk(
   stainlessVersion: string | undefined,
 ): SdkInfo {
   if (ua) {
+    const cursor = ua.match(/(?:^|\b)cursor[/\s]?([\d.]+)?/i);
+    if (cursor) {
+      return { sdk: 'cursor', ...(cursor[1] ? { sdkVersion: cursor[1] } : {}) };
+    }
+
+    const cline = ua.match(/(?:^|\b)cline[/\s]?([\d.]+)?/i);
+    if (cline) {
+      return { sdk: 'cline', ...(cline[1] ? { sdkVersion: cline[1] } : {}) };
+    }
+
+    const rooCode = ua.match(/(?:^|\b)roo[-_]?(?:code|cline)[/\s]?([\d.]+)?/i);
+    if (rooCode) {
+      return { sdk: 'roo-code', ...(rooCode[1] ? { sdkVersion: rooCode[1] } : {}) };
+    }
+
+    const continueDev = ua.match(/(?:^|\b)continue[/\s]?([\d.]+)?/i);
+    if (continueDev) {
+      return { sdk: 'continue', ...(continueDev[1] ? { sdkVersion: continueDev[1] } : {}) };
+    }
+
+    const aider = ua.match(/(?:^|\b)aider[/\s]?([\d.]+)?/i);
+    if (aider) {
+      return { sdk: 'aider', ...(aider[1] ? { sdkVersion: aider[1] } : {}) };
+    }
+
     const openai = ua.match(/^OpenAI\/(\w+)\s+([\d.]+)/i);
     if (openai) {
       return { sdk: `openai-${openai[1].toLowerCase()}`, sdkVersion: openai[2] };

@@ -65,6 +65,13 @@ export class CodeAssistClientService {
     const loaded = await this.callJson<LoadCodeAssistResponse>(':loadCodeAssist', accessToken, {
       metadata: CLIENT_METADATA,
     });
+    this.logger.debug(
+      `CodeAssist :loadCodeAssist response: ${JSON.stringify({
+        hasProject: !!loaded.cloudaicompanionProject,
+        currentTier: loaded.currentTier,
+        allowedTiers: loaded.allowedTiers,
+      })}`,
+    );
     const existingProject = loaded.cloudaicompanionProject;
     const currentTierId = loaded.currentTier?.id;
     if (existingProject && currentTierId) {
@@ -76,14 +83,31 @@ export class CodeAssistClientService {
     if (!tier) {
       throw new Error('CodeAssist returned no allowed tiers — onboarding cannot proceed.');
     }
+    this.logger.log(`CodeAssist :onboardUser starting with tierId=${tier.id}`);
     const lro = await this.callJson<LongRunningOperation>(':onboardUser', accessToken, {
       tierId: tier.id,
       metadata: CLIENT_METADATA,
     });
+    this.logger.debug(
+      `CodeAssist :onboardUser initial LRO: ${JSON.stringify({
+        done: lro.done,
+        name: lro.name,
+        hasResponse: !!lro.response,
+      })}`,
+    );
     const completed = await this.waitForOperation(lro, accessToken);
     const projectId = completed.response?.cloudaicompanionProject?.id;
     if (!projectId) {
-      throw new Error('CodeAssist onboardUser returned no project id.');
+      // Standard-tier accounts with `userDefinedCloudaicompanionProject` may
+      // return an empty `cloudaicompanionProject` object — the user's Bearer
+      // token already identifies their subscription, so requests can still be
+      // routed by the CodeAssist API without an explicit project id.
+      this.logger.warn(
+        `CodeAssist onboardUser returned no project id (tier=${tier.id}). ` +
+          `Full response: ${JSON.stringify(completed)}. ` +
+          'Proceeding with empty project — the Bearer token identifies the subscription.',
+      );
+      return { projectId: '', tierId: tier.id };
     }
     return { projectId, tierId: tier.id };
   }

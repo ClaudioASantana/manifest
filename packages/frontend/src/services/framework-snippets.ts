@@ -12,7 +12,7 @@ export const FRAMEWORK_TABS: FrameworkTab[] = [
   { id: 'curl', label: 'cURL' },
 ];
 
-export type ToolkitId = 'openai-sdk' | 'anthropic-sdk' | 'vercel-ai-sdk' | 'langchain' | 'curl';
+export type ToolkitId = 'openai-sdk' | 'anthropic-sdk' | 'vercel-ai-sdk' | 'langchain' | 'cursor' | 'curl';
 export type OpenAILangId = 'python' | 'typescript';
 export type OpenAIApiId = 'responses' | 'chat-completions';
 
@@ -27,6 +27,7 @@ export const TOOLKIT_TABS: ToolkitTab[] = [
   { id: 'anthropic-sdk', label: 'Anthropic SDK', icon: '/icons/providers/anthropic.svg' },
   { id: 'vercel-ai-sdk', label: 'Vercel AI SDK', icon: '/icons/vercel.svg' },
   { id: 'langchain', label: 'LangChain', icon: '/icons/langchain.svg' },
+  { id: 'cursor', label: 'Cursor IDE' },
   { id: 'curl', label: 'cURL' },
 ];
 
@@ -466,6 +467,21 @@ export function storeOpenAILang(id: OpenAILangId): void {
   }
 }
 
+export function getCursorSnippet(baseUrl: string, apiKey: string): Snippet {
+  return {
+    title: 'Cursor IDE Setup',
+    code: `// In Cursor Settings (Cmd+, or Ctrl+,) -> Models:
+// 1. Turn ON "OpenAI API Key" -> enter your Manifest key: ${apiKey}
+// 2. Click "Override OpenAI Base URL" -> enter: ${baseUrl}
+// 3. Set default model -> auto
+{
+  "openaiApiKey": "${apiKey}",
+  "openaiBaseUrl": "${baseUrl}",
+  "model": "auto"
+}`,
+  };
+}
+
 export function getSnippetForToolkit(
   id: ToolkitId,
   baseUrl: string,
@@ -494,6 +510,8 @@ export function getSnippetForToolkit(
         : getTypeScriptSnippets(baseUrl, apiKey, customHeaders)[0]!;
     case 'langchain':
       return getPythonSnippets(baseUrl, apiKey, customHeaders)[0]!;
+    case 'cursor':
+      return getCursorSnippet(baseUrl, apiKey);
     case 'curl':
       return getCurlSnippet(baseUrl, apiKey, customHeaders)[0]!;
   }
@@ -509,6 +527,8 @@ export function getLangForToolkit(id: ToolkitId, openaiLang?: OpenAILangId): str
       return openaiLang === 'typescript' ? 'typescript' : 'python';
     case 'langchain':
       return 'python';
+    case 'cursor':
+      return 'json';
     case 'curl':
       return 'bash';
   }

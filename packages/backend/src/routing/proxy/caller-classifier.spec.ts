@@ -58,6 +58,36 @@ describe('classifyCaller', () => {
     expect(result?.sdkVersion).toBe('1.6.0');
   });
 
+  it('classifies Cursor IDE', () => {
+    const result = classifyCaller({ 'user-agent': 'Cursor/0.45.11' });
+    expect(result?.sdk).toBe('cursor');
+    expect(result?.sdkVersion).toBe('0.45.11');
+  });
+
+  it('classifies Cline', () => {
+    const result = classifyCaller({ 'user-agent': 'Cline/3.4.0' });
+    expect(result?.sdk).toBe('cline');
+    expect(result?.sdkVersion).toBe('3.4.0');
+  });
+
+  it('classifies Roo Code', () => {
+    const result = classifyCaller({ 'user-agent': 'Roo-Code/3.8.0' });
+    expect(result?.sdk).toBe('roo-code');
+    expect(result?.sdkVersion).toBe('3.8.0');
+  });
+
+  it('classifies Continue', () => {
+    const result = classifyCaller({ 'user-agent': 'continue/0.9.0' });
+    expect(result?.sdk).toBe('continue');
+    expect(result?.sdkVersion).toBe('0.9.0');
+  });
+
+  it('classifies Aider', () => {
+    const result = classifyCaller({ 'user-agent': 'aider/0.72.0' });
+    expect(result?.sdk).toBe('aider');
+    expect(result?.sdkVersion).toBe('0.72.0');
+  });
+
   it('falls back to stainless-{lang} when UA does not match a known pattern', () => {
     const result = classifyCaller({
       'user-agent': 'mystery-client/1.2.3',
