@@ -71,6 +71,7 @@ import {
   createAttemptRecordingCapture,
   recordingResponseFromText,
 } from './attempt-recording-capture';
+import { VirtualComboRouter } from './virtual-combo-router';
 
 const MAX_SEEN_TENANTS = 10_000;
 const SEEN_TENANT_TTL_MS = 24 * 60 * 60 * 1000;
@@ -138,6 +139,7 @@ export class ProxyController {
     private readonly observationReporter: ObservationReporter,
     private readonly providerParamSpecs: ProviderParamSpecService,
     private readonly modelsDevSync: ModelsDevSyncService,
+    private readonly virtualComboRouter: VirtualComboRouter,
     @Optional()
     private readonly recordingConfig?: AgentRecordingConfigService,
     @Optional()
@@ -166,6 +168,16 @@ export class ProxyController {
         owned_by: 'manifest',
       },
     ];
+    
+    const combos = this.virtualComboRouter.getAvailableCombos();
+    for (const combo of combos) {
+      data.push({
+        id: combo.id,
+        object: 'model',
+        created: MODEL_CREATED_UNKNOWN,
+        owned_by: 'manifest',
+      });
+    }
     const seen = new Set(data.map((model) => model.id));
 
     for (const model of models) {

@@ -71,6 +71,7 @@ import {
 import { AutofixService } from '../autofix/autofix.service';
 import type { AutofixRecord } from '../autofix/autofix.types';
 import { recordingResponseFromText } from './attempt-recording-capture';
+import { VirtualComboRouter } from './virtual-combo-router';
 
 type ResolvedRouting = Awaited<ReturnType<ResolveService['resolve']>> & {
   explicit_model_override?: boolean;
@@ -228,6 +229,7 @@ export class ProxyService {
     private readonly modelParamsService: AgentModelParamsService,
     private readonly providerParamSpecs: ProviderParamSpecService,
     private readonly autofixService: AutofixService,
+    private readonly virtualComboRouter: VirtualComboRouter,
   ) {}
 
   async proxyRequest(opts: ProxyRequestOptions): Promise<ProxyResult> {
@@ -897,6 +899,25 @@ export class ProxyService {
     apiMode: ProxyApiMode,
   ): Promise<ResolvedRouting> {
     const requestedModel = typeof body.model === 'string' ? body.model : undefined;
+
+    if (requestedModel && this.virtualComboRouter.isCombo(requestedModel)) {
+      const candidates = this.virtualComboRouter.resolveCombo(requestedModel);
+      if (candidates && candidates.length > 0) {
+        const routes: NonNullable<ResolvedRouting['route']>[] = [];
+        for (const candidate of candidates) {
+          const explicit = await this.resolveExplicitModel(agentId, tenantId, candidate, headers);
+          if (explicit && explicit.route) {
+            routes.push(explicit.route);
+          }
+        }
+        if (routes.length > 0) {
+          const routing = await this.explicitRouting(agentId, tenantId, routes[0]);
+          routing.fallback_routes = routes.slice(1);
+          return routing;
+        }
+      }
+    }
+
     // Every public proxy surface treats a concrete model as an explicit route.
     // The resolver accepts both provider-qualified /v1/models IDs and the
     // unambiguous provider-native IDs required by Anthropic clients.
